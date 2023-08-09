@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Index Page</title>
+   </head>
+   <body>
+      <h3>Profiles</h3>
+      <a href="/add_data">Submit</a>
+      <br>
+      <table style="width:100%">
+         <tr>
+            <th>Keys</th>
+            <th>Values</th>
+         </tr>
+         {% for data in profiles %}
+         <tr>
+            <td>ID : </td>
+            <td>{{data.id}}</td>
+         </tr>
+         <tr>
+         <tr>
+            <td>Identification_Number : </td>
+            <td>{{data.Identification_Number}}</td>
+         </tr>
+         <tr>
+            <td>PrefixTH :</td>
+            <td>{{data.PrefixTH}}</td>
+         <tr>
+            <td>NameTH :</td>
+            <td>{{data.NameTH}}</td>
+         </tr>
+         <tr>
+            <td>LastNameTH :</td>
+            <td>{{data.LastNameTH}}</td>
+         <tr>
+            <td>PrefixEN : </td>
+            <td>{{data.PrefixEN}}</td>
+         </tr>
+         <tr>
+            <td>NameEN : </td>
+            <td>{{data.NameEN}}</td>
+         <tr>
+            <td>LastNameEN : </td>
+            <td>{{data.LastNameEN}}</td>
+         </tr>
+         <tr>
+            <td>BirthdayTH : </td>
+            <td>{{data.BirthdayTH}}</td>
+         <tr>
+            <td>BirthdayEN : </td>
+            <td>{{data.BirthdayEN}}</td>
+         </tr>
+         <tr>
+            <td>Religion : </td>
+            <td>{{data.Religion}}</td>
+         <tr>
+            <td>Address : </td>
+            <td>{{data.Address}}</td>
+         </tr>
+         <tr>
+            <td>Issuedate_TH : </td>
+            <td>{{data.Issuedate_TH}}</td>
+         </tr>
+         <tr>
+            <td>Expirydate_TH : </td>
+            <td>{{data.Expirydate_TH}}</td>
+         </tr>
+         <tr>
+            <td>Issuedate_EN : </td>
+            <td>{{data.Issuedate_EN}}</td>
+         </tr>
+         <tr>
+            <td>Expirydate_EN : </td>
+            <td>{{data.Expirydate_EN}}</td>
+            <td><a href="/delete/{{data.id}}" type="button">Delete</a></td>
+         </tr>
+         {% endfor%}
+      </table>
+   </body>
+</html>
