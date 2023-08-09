@@ -30,8 +30,9 @@ OCR_LOCATIONS = [
     OCRLocation("office", (153, 301, 321, 349), ["พนักงงาน", "พนักงงาน", "สคง", "เจ้าพนักงานออกบัตร"])
 ]
 
+
 class OcrReader:
-    def __init__(self,template_threshold: float = 0.7,
+    def __init__(self, template_threshold: float = 0.7,
                  tessdata_dir_config: str = r'--tessdata-dir "Tesseract-OCR/tessdata"'):
         self.tessdata_dir_config = tessdata_dir_config
         self.template_threshold = template_threshold
@@ -40,9 +41,10 @@ class OcrReader:
         self.shift_rate = 25000
         self.good = []
         self.parsingResults = []
-        #pytesseract.pytesseract.tesseract_cmd = r'Tesseract-OCR/tesseract.exe'
+        # pytesseract.pytesseract.tesseract_cmd = r'Tesseract-OCR/tesseract.exe'
+
     def flan(self, img_soruce):
-        template = cv2.imread("template_img/personal-card-template.jpg")
+        template = cv2.imread("template_img/personal-card-template.jpg",cv2.IMREAD_COLOR)
         sift = cv2.SIFT.create(25000)
         kp1, des1 = sift.detectAndCompute(img_soruce, None)
         kp2, des2 = sift.detectAndCompute(template, None)
@@ -51,17 +53,19 @@ class OcrReader:
         search_params = dict(checks=100)
         flann = cv2.FlannBasedMatcher(index_params, search_params)
         matches = flann.knnMatch(des1, des2, k=2)
-        good = []
+        self.good = []
         for m, n in matches:
-            if m.distance < 0.7 * n.distance:
-                good.append(m)
-        if len(good) > 30:
-            src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-            dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+            if m.distance < self.template_threshold * n.distance:
+                self.good.append(m)
+        if len(self.good) > 30:
+            src_pts = np.float32([kp1[m.queryIdx].pt for m in self.good]).reshape(-1, 1, 2)
+            dst_pts = np.float32([kp2[m.trainIdx].pt for m in self.good]).reshape(-1, 1, 2)
             M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            h, w = template.shape[:2]
+            h, w, _ = template.shape
             image_scan = cv2.warpPerspective(img_soruce, M, (w, h))
-            return image_scan
+        else:
+            image_scan = img_soruce
+        return image_scan
 
     def __readImage(self, image=None):
         try:
@@ -73,27 +77,27 @@ class OcrReader:
             except binascii.Error:
                 # handler if image params is string path.
                 img = cv2.imread(image)
-            dim = (600, 350)
-            img_resize = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-            skew = skew_correction(img_resize)
-            img = cv2.cvtColor(skew,cv2.COLOR_GRAY2BGR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            if img.shape[1] > 1280:
+                scale_percent = 60  # percent of original size
+                width = int(img.shape[1] * scale_percent / 100)
+                height = int(img.shape[0] * scale_percent / 100)
+                dim = (width, height)
+                img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
             return img
         except cv2.error as e:
             raise ValueError(f"Can't read image from source. cause {e.msg}")
 
     def __extractItems(self, image_scan):
-        filename = "{}.png".format(os.getpid())
-        cv2.imwrite(filename, image_scan)
-        image_scan = cv2.imread(filename)
-        os.remove(filename)
         self.parsingResults = []
         for loc in OCR_LOCATIONS:
             (x, y, w, h) = loc.bbox
-            roi = image_scan[y:h, x:w]
-            imgCrop = cv2.cvtColor(roi, cv2.IMREAD_COLOR)
+            imgCrop = image_scan[y:h, x:w]
+            # imgCrop = cv2.cvtColor(roi, cv2.IMREAD_COLOR)
             try:
                 if loc.id in 'card_number':
-                    card_number = pytesseract.image_to_string(imgCrop, lang="tha+eng", config="--oem 1 -c tessedit_char_whitelist=0123456789",
+                    card_number = pytesseract.image_to_string(imgCrop, lang="tha+eng",
+                                                              config="--oem 1 -c tessedit_char_whitelist=0123456789",
                                                               output_type=Output.STRING)
                     card_number = re.sub(r'[^\w\s\n]', ' ', card_number)
                     idc_regex = re.compile(r"\d")
@@ -102,14 +106,7 @@ class OcrReader:
 
                 elif loc.id in 'FullnameTH':
                     imgCrop = cv2.resize(imgCrop, (0, 0), fx=1.2, fy=1.2)
-                    imgCrop = cv2.adaptiveThreshold(imgCrop[:, :, 0], 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                                    cv2.THRESH_BINARY,
-                                                    11,
-                                                    8) + cv2.adaptiveThreshold(imgCrop[:, :, 1], 255,
-                                                                               cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                                                               cv2.THRESH_BINARY, 11,
-                                                                               8) + cv2.adaptiveThreshold(
-                        imgCrop[:, :, 2], 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 8)
+
                     NameTH = pytesseract.image_to_string(imgCrop, lang="tha", config="--dpi 300 --psm 7 --oem 1",
                                                          output_type=Output.STRING)
                     NameTH = " ".join(NameTH.split())
@@ -174,8 +171,7 @@ class OcrReader:
                     religion = Religion.strip()
                     self.parsingResults.append(religion)
                 elif loc.id in 'Address':
-
-                    add = pytesseract.image_to_string(imgCrop,lang="tha", config="--dpi 300",
+                    add = pytesseract.image_to_string(imgCrop, lang="tha", config="--dpi 300 --psm 3",
                                                       output_type=Output.STRING)
                     address = " ".join(add.split())
                     punc = '''!()-[]{};:'"\|,<>?@#$%^&*_~'''
@@ -198,7 +194,8 @@ class OcrReader:
                     issuedate = re.sub(r',ุ', '.', issuedate)
                     self.parsingResults.append(issuedate.strip())
                 elif loc.id in 'Issue_dateEN':
-                    IssueEN = pytesseract.image_to_string(imgCrop, lang="eng", config="--dpi 300 --psm 6",
+                    imgCrop = cv2.resize(imgCrop, (0, 0), fx=1.2, fy=1.2)
+                    IssueEN = pytesseract.image_to_string(imgCrop, lang="eng", config="--dpi 400 --psm 6",
                                                           output_type=Output.STRING)
                     issuedateEN = " ".join(IssueEN.split())
                     punc = '''!()-[]{};:'"\|—.,+<>/?@#$%^&*_~'''
@@ -217,14 +214,16 @@ class OcrReader:
                             expiryTH = expiryTH.replace(ele, "")
                     self.parsingResults.append(expiryTH.strip())
                 elif loc.id in 'expiry_dateEN':
-                    expiry_dateEN = pytesseract.image_to_string(imgCrop, lang="eng", config="--dpi 400 --psm 6",
+                    imgCrop = cv2.resize(imgCrop, (0, 0), fx=1.2, fy=1.2)
+                    expiry_dateEN = pytesseract.image_to_string(imgCrop, lang="eng", config="--dpi 300 --psm 6",
                                                                 output_type=Output.STRING)
                     expirydateEN = " ".join(expiry_dateEN.split())
                     expiryEN = expirydateEN.translate(str.maketrans('', '', string.punctuation))
                     self.parsingResults.append(expiryEN.strip())
                 else:
                     imgCrop = cv2.resize(imgCrop, (0, 0), fx=1.2, fy=1.2)
-                    office = pytesseract.image_to_string(imgCrop, lang="tha+dilleniaupc", config="--dpi 300 --psm 3 --oem 3",
+                    office = pytesseract.image_to_string(imgCrop, lang="tha+dilleniaupc",
+                                                         config="--dpi 300 --psm 3 --oem 3",
                                                          output_type=Output.STRING)
                     id1 = office.index("(")
                     id2 = office.index(")")
